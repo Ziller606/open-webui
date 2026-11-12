@@ -146,6 +146,7 @@
 	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
 	import GpuTopBar from '$lib/components/nzila/GpuTopBar.svelte';
 	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { resolveModelNumCtx } from '$lib/utils/nzila/modelCtx';
 	import {
 		nzilaOnFirstToken,
 		nzilaOnInferenceDone,
@@ -238,6 +239,7 @@
 
 	let selectedModels = [''];
 	let nzilaPrevPrimaryModel = '';
+	const nzilaFirstTokenByMessage = new Set<string>();
 	let selectedModelIdx = 0;
 	$: selectedModelIdx = Math.max(0, selectedModels.length - 1);
 	$: backgroundImage = embedded
@@ -1669,8 +1671,23 @@
 						responseCompletionEventHandler(data, message);
 					} else {
 						await chatCompletionEventHandler(data, message, event.chat_id, event.shared);
+						if ($config?.features?.nzila_local_gpu && message?.model) {
+							const delta = data?.choices?.[0]?.delta?.content;
+							const chunk =
+								(typeof data?.content === 'string' && data.content) ||
+								(typeof delta === 'string' && delta);
+							if (chunk && !nzilaFirstTokenByMessage.has(message.id)) {
+								nzilaFirstTokenByMessage.add(message.id);
+								const nzilaModel = $models.find((m) => m.id === message.model);
+								nzilaOnFirstToken(message.model, nzilaModel?.name ?? message.model);
+							}
+							if (data?.done) {
+								nzilaOnInferenceDone(message.model);
+								refreshNzilaGpu();
+							}
+						}
 					}
-					if ($config?.features?.nzila_local_gpu) {
+					if ($config?.features?.nzila_local_gpu && type === 'response:completion' && data?.done) {
 						if (message?.model) nzilaOnInferenceDone(message.model);
 						refreshNzilaGpu();
 					}
@@ -1706,8 +1723,10 @@
 						$config?.features?.nzila_local_gpu &&
 						!hadContent &&
 						message.model &&
-						data?.content
+						data?.content &&
+						!nzilaFirstTokenByMessage.has(message.id)
 					) {
+						nzilaFirstTokenByMessage.add(message.id);
 						const nzilaModel = $models.find((m) => m.id === message.model);
 						nzilaOnFirstToken(message.model, nzilaModel?.name ?? message.model);
 					}
@@ -3710,6 +3729,9 @@
 
 		if (usage) {
 			message.usage = usage;
+			if (usage.eval_count && usage.eval_duration) {
+				message.info = { ...(message.info ?? {}), ...usage };
+			}
 			captureUsageCheckpoint(message);
 		}
 
@@ -5137,6 +5159,12 @@
 		const merged: Record<string, number> = { ...defaults, ...fromParams };
 		for (const modelId of selectedModels.filter(Boolean)) {
 			if (merged[modelId] === undefined) {
+				const model = $models.find((m) => m.id === modelId);
+				const fromModel = resolveModelNumCtx(model);
+				if (fromModel !== undefined) {
+					merged[modelId] = fromModel;
+					continue;
+				}
 				const n = params?.num_ctx;
 				merged[modelId] =
 					n !== null && n !== undefined && n !== '' ? Number(n) : 8192;

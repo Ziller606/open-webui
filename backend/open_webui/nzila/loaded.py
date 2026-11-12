@@ -83,11 +83,11 @@ async def fetch_ollama_loaded(request, user) -> list[dict[str, Any]]:
     return out
 
 
-async def fetch_bonsai_loaded(router_base_url: str) -> list[dict[str, Any]]:
+async def fetch_bonsai_loaded(router_base_url: str, *, prefix_id: str | None = None) -> list[dict[str, Any]]:
     from open_webui.nzila.bonsai_router import fetch_bonsai_loaded_models
 
     try:
-        return await fetch_bonsai_loaded_models(router_base_url)
+        return await fetch_bonsai_loaded_models(router_base_url, prefix_id=prefix_id)
     except Exception as exc:
         log.debug('Bonsai GET /models failed: %s', exc)
         return []
@@ -100,5 +100,8 @@ async def list_loaded_models(request, user) -> list[dict[str, Any]]:
     except Exception as exc:
         log.debug('Ollama loaded list failed: %s', exc)
     if NZILA_BONSAI_ROUTER_ENABLED and NZILA_BONSAI_ROUTER_URL:
-        models.extend(await fetch_bonsai_loaded(NZILA_BONSAI_ROUTER_URL))
+        from open_webui.nzila.bonsai_prefix import resolve_bonsai_prefix_id
+
+        prefix_id = await resolve_bonsai_prefix_id()
+        models.extend(await fetch_bonsai_loaded(NZILA_BONSAI_ROUTER_URL, prefix_id=prefix_id))
     return models

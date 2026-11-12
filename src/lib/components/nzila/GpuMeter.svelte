@@ -12,6 +12,7 @@
 		soonestExpiryMs
 	} from '$lib/utils/nzila/countdown';
 	import { isVramRedZone, vramPercent } from '$lib/utils/nzila/redzone';
+	import { toast } from 'svelte-sonner';
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -31,7 +32,13 @@
 		(snap.utilPercent !== null || snap.vramUsedGb !== null || snap.vramTotalGb !== null);
 	$: vramPct = vramPercent(snap.vramUsedGb, snap.vramTotalGb);
 	$: inRed = isVramRedZone(vramPct, threshold);
-	$: soonestMs = soonestExpiryMs(snap.loadedModels.map((m) => m.expiresAt));
+	$: soonestMs =
+		snap.loadedModels.length > 0 && nzila.showGpuCountdown
+			? soonestExpiryMs(
+					snap.loadedModels.map((m) => m.expiresAt),
+					now
+				)
+			: null;
 	$: countdownSec =
 		nzila.showGpuCountdown && soonestMs !== null ? secondsRemaining(soonestMs, now) : null;
 	$: countdownLabel =
@@ -56,7 +63,7 @@
 			nzilaOnUnload(modelId, shortModel(modelId), freedMb);
 			refreshNzilaGpu();
 		} catch (err) {
-			console.error(err);
+			toast.error(err instanceof Error ? err.message : 'Failed to unload model');
 		} finally {
 			unloading = { ...unloading, [modelId]: false };
 		}
@@ -69,7 +76,7 @@
 			nzilaOnUnload('all', 'all models', null);
 			refreshNzilaGpu();
 		} catch (err) {
-			console.error(err);
+			toast.error(err instanceof Error ? err.message : 'Failed to free GPU');
 		} finally {
 			freeingAll = false;
 		}

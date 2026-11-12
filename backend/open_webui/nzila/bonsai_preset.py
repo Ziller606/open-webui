@@ -36,6 +36,23 @@ def find_model_section(parser: ConfigParser, model_id: str) -> str | None:
     return None
 
 
+def _split_ini_preamble(text: str) -> tuple[str, str]:
+    preamble: list[str] = []
+    body: list[str] = []
+    seen_section = False
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if not seen_section:
+            if stripped.startswith('[') and stripped.endswith(']'):
+                seen_section = True
+                body.append(line)
+            else:
+                preamble.append(line)
+        else:
+            body.append(line)
+    return ''.join(preamble), ''.join(body)
+
+
 def update_preset_ctx_size(preset_path: str | Path, model_id: str, ctx: int) -> str:
     """Rewrite ctx-size for one model section. Keeps a ``.bak`` alongside the preset."""
     path = Path(preset_path)
@@ -43,9 +60,10 @@ def update_preset_ctx_size(preset_path: str | Path, model_id: str, ctx: int) -> 
         raise FileNotFoundError(f'Preset not found: {path}')
 
     text = path.read_text(encoding='utf-8')
+    preamble, body = _split_ini_preamble(text)
     parser = ConfigParser()
     parser.optionxform = str  # preserve key casing
-    parser.read_string(text)
+    parser.read_string(body or '\n')
 
     section = find_model_section(parser, model_id)
     if not section:

@@ -50,8 +50,14 @@ def gpu_vram_free_gb(gpu_stats: dict[str, Any] | None) -> float | None:
         except (TypeError, ValueError):
             return None
 
+    used_mib = _num(gpu_stats.get('memory_used_mib'))
+    total_mib = _num(gpu_stats.get('memory_total_mib'))
     used = _num(gpu_stats.get('vram_used_gb')) or _num(gpu_stats.get('memory_used_gb'))
     total = _num(gpu_stats.get('vram_total_gb')) or _num(gpu_stats.get('memory_total_gb'))
+    if used is None and used_mib is not None:
+        used = used_mib / 1024.0
+    if total is None and total_mib is not None:
+        total = total_mib / 1024.0
     used_b = _num(gpu_stats.get('vram_used')) or _num(gpu_stats.get('memory_used'))
     total_b = _num(gpu_stats.get('vram_total')) or _num(gpu_stats.get('memory_total'))
     if used is None and used_b is not None:

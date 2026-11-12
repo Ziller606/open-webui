@@ -16,3 +16,21 @@ def test_normalize_ollama_entry():
 def test_normalize_with_prefix():
     entry = loaded.normalize_loaded_entry({'model': 'm1', 'size_vram': 10}, source='ollama', prefix_id='pfx')
     assert entry['model'] == 'pfx.m1'
+
+
+def test_bonsai_loaded_skips_sleeping():
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    bonsai = load_module('open_webui.nzila.bonsai_router', 'nzila/bonsai_router.py')
+    bonsai.fetch_router_models_raw = AsyncMock(
+        return_value=[
+            {'id': 'a', 'status': {'value': 'sleeping'}},
+            {'id': 'b', 'status': {'value': 'loaded'}, 'memory': {'effective': {'devices': [{'model': 1_000_000}]}}},
+        ]
+    )
+    bonsai.resolve_router_idle_seconds = AsyncMock(return_value=300)
+
+    rows = asyncio.run(bonsai.fetch_bonsai_loaded_models('http://127.0.0.1:8096', prefix_id='bonsai'))
+    assert len(rows) == 1
+    assert rows[0]['model'] == 'bonsai.b'

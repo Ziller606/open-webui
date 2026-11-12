@@ -18,7 +18,13 @@ describe('countdown', () => {
 	});
 
 	it('picks soonest expiry', () => {
-		const soon = soonestExpiryMs(['2026-01-01T00:10:00Z', '2026-01-01T00:05:00Z']);
+		const now = Date.parse('2026-01-01T00:00:00Z');
+		const soon = soonestExpiryMs(['2026-01-01T00:10:00Z', '2026-01-01T00:05:00Z'], now);
 		expect(soon).toBe(Date.parse('2026-01-01T00:05:00Z'));
+	});
+
+	it('ignores past expiries', () => {
+		const now = Date.parse('2026-01-01T00:10:00Z');
+		expect(soonestExpiryMs(['2026-01-01T00:05:00Z'], now)).toBeNull();
 	});
 });

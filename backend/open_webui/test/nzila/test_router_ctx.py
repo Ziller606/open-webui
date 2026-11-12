@@ -32,9 +32,11 @@ async def test_apply_bonsai_context_reload(tmp_path, monkeypatch):
         'fetch_router_models_raw',
         AsyncMock(return_value=[{'id': 'm', 'status': {'value': 'loaded'}}]),
     )
+    monkeypatch.setattr(bonsai, 'reload_router_models', AsyncMock(return_value={'reloaded': True}))
     monkeypatch.setattr(bonsai, 'unload_router_model', AsyncMock(return_value={'success': True}))
     monkeypatch.setattr(bonsai, 'load_router_model', AsyncMock(return_value={'success': True}))
     result = await apply_bonsai_context('http://127.0.0.1:8096', 'm', 32768)
     assert result['ctx'] == 32768
+    bonsai.reload_router_models.assert_awaited_once()
     bonsai.unload_router_model.assert_awaited_once()
     bonsai.load_router_model.assert_awaited_once()

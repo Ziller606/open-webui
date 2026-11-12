@@ -67,10 +67,14 @@ const parseSnapshot = (payload: Record<string, unknown> | null): Omit<NzilaGpuSn
 		asNumber(payload.gpu_util) ??
 		asNumber(payload.utilization) ??
 		asNumber(payload.gpu);
+	const usedMib = asNumber(payload.memory_used_mib);
+	const totalMib = asNumber(payload.memory_total_mib);
 	let used =
 		asNumber(payload.vram_used_gb) ?? asNumber(payload.memory_used_gb) ?? asNumber(payload.used_gb);
 	let total =
 		asNumber(payload.vram_total_gb) ?? asNumber(payload.memory_total_gb) ?? asNumber(payload.total_gb);
+	if (used === null && usedMib !== null) used = usedMib / 1024;
+	if (total === null && totalMib !== null) total = totalMib / 1024;
 	const usedBytes = asNumber(payload.vram_used) ?? asNumber(payload.memory_used) ?? asNumber(payload.used);
 	const totalBytes =
 		asNumber(payload.vram_total) ?? asNumber(payload.memory_total) ?? asNumber(payload.total);

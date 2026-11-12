@@ -130,6 +130,7 @@ from open_webui.env import (
     NZILA_CONTEXT_SLIDER_ENABLED,
     NZILA_EXTENSIONS_ENABLED,
     NZILA_GPU_METER_ENABLED,
+    NZILA_SAFE_CTX_PATH,
 )
 from open_webui.events import (
     EVENTS,
@@ -2576,6 +2577,17 @@ async def get_app_config(request: Request):
                 else {}
             ),
         },
+        **(
+            {
+                'nzila': {
+                    'safe_ctx': bool(NZILA_SAFE_CTX_PATH),
+                    'gpu_meter': NZILA_GPU_METER_ENABLED,
+                    'bonsai_router': NZILA_BONSAI_ROUTER_ENABLED,
+                }
+            }
+            if NZILA_EXTENSIONS_ENABLED and user is not None
+            else {}
+        ),
         **(
             {
                 'default_models': ','.join(group_defaults) if group_defaults else config.get('ui.default_models'),

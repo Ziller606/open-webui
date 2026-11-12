@@ -44,11 +44,15 @@ async def model_is_bonsai(model_id: str, request) -> bool:
 
     if _resolve_safe_bonsai(model_id):
         return True
+    from open_webui.nzila.bonsai_prefix import resolve_bonsai_prefix_id
+    from open_webui.nzila.model_meta import db_model_bonsai
+
+    prefix_id = await resolve_bonsai_prefix_id()
+    if prefix_id and model_id.startswith(f'{prefix_id}.'):
+        return True
     db_model = await Models.get_model_by_id(model_id)
-    if db_model and db_model.info:
-        meta = (db_model.info or {}).get('meta') or {}
-        if meta.get('nzila_bonsai'):
-            return True
+    if db_model_bonsai(db_model):
+        return True
     ollama_models = getattr(request.app.state, 'OLLAMA_MODELS', {}) or {}
     meta = (ollama_models.get(model_id) or {}).get('info', {}) or {}
     if isinstance(meta, dict):
@@ -112,7 +116,11 @@ async def unload_model(request, user, model_id: str) -> dict[str, Any]:
     bonsai = NZILA_BONSAI_ROUTER_ENABLED and NZILA_BONSAI_ROUTER_URL and await model_is_bonsai(model_id, request)
     if bonsai:
         try:
-            result = await apply_bonsai_unload(NZILA_BONSAI_ROUTER_URL, model_id)
+            from open_webui.nzila.bonsai_prefix import resolve_bonsai_prefix_id, strip_bonsai_router_id
+
+            prefix_id = await resolve_bonsai_prefix_id()
+            router_id = strip_bonsai_router_id(model_id, prefix_id)
+            result = await apply_bonsai_unload(NZILA_BONSAI_ROUTER_URL, router_id)
             return {'model': model_id, 'source': 'bonsai', 'status': 'ok', 'router': result}
         except RouterAdminError as exc:
             raise UnloadError('router_error', str(exc.detail)) from exc

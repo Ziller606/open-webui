@@ -6,6 +6,7 @@ export type FitLimits = {
 	hard_max: number;
 	fixed?: boolean;
 	bonsai?: boolean;
+	num_ctx?: number;
 };
 
 export type ModelFitHints = {
@@ -46,6 +47,8 @@ const asNumber = (value: unknown): number | null => {
 
 export const gpuVramFreeGb = (gpuStats?: GpuStats | null): number | null => {
 	if (!gpuStats) return null;
+	const usedMib = asNumber(gpuStats.memory_used_mib);
+	const totalMib = asNumber(gpuStats.memory_total_mib);
 	let used =
 		asNumber(gpuStats.vram_used_gb) ??
 		asNumber(gpuStats.memory_used_gb) ??
@@ -54,6 +57,8 @@ export const gpuVramFreeGb = (gpuStats?: GpuStats | null): number | null => {
 		asNumber(gpuStats.vram_total_gb) ??
 		asNumber(gpuStats.memory_total_gb) ??
 		asNumber(gpuStats.total_gb);
+	if (used === null && usedMib !== null) used = usedMib / 1024;
+	if (total === null && totalMib !== null) total = totalMib / 1024;
 	const usedBytes =
 		asNumber(gpuStats.vram_used) ?? asNumber(gpuStats.memory_used) ?? asNumber(gpuStats.used);
 	const totalBytes =

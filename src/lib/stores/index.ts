@@ -428,6 +428,11 @@ type Config = {
 	default_pinned_models?: string | null;
 	default_prompt_suggestions: PromptSuggestion[] | null;
 	default_prompt_suggestions_i18n?: Record<string, { suggestion_prompts: PromptSuggestion[] }>;
+	nzila?: {
+		safe_ctx?: boolean;
+		gpu_meter?: boolean;
+		bonsai_router?: boolean;
+	};
 	features: {
 		enable_encrypted_channels?: boolean;
 		slim?: boolean;

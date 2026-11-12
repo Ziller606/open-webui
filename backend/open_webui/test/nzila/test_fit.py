@@ -30,3 +30,12 @@ def test_compute_with_gpu():
     )
     assert limits['safe_max'] >= 2048
     assert limits['tight_max'] >= limits['safe_max']
+
+
+def test_compute_with_mib_gpu():
+    limits = compute_fit_limits(
+        model_size_bytes=int(1.2e9),
+        parameter_size='1.7B',
+        gpu_stats={'memory_used_mib': 2048, 'memory_total_mib': 6144},
+    )
+    assert limits['safe_max'] >= 2048

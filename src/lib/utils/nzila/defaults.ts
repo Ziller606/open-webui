@@ -17,7 +17,7 @@ export const NZILA_SETTINGS_DEFAULTS: NzilaUserSettings = {
 	showContextSlider: true,
 	pollIntervalMs: 2000,
 	applyContextLive: true,
-	showToksPerSec: false,
+	showToksPerSec: true,
 	vramRedZonePercent: 90,
 	showModelToasts: true,
 	showGpuCountdown: true,

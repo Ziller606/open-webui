@@ -43,7 +43,25 @@ echo
 check "safe-ctx" GET "/safe-ctx" "200"
 check "gpu-stats" GET "/gpu-stats" "any"
 check "loaded" GET "/loaded" "200"
-check "fit sample" GET "/fit/llama3.2" "any"
+FIT_MODEL="${NZILA_SMOKE_FIT_MODEL:-}"
+if [[ -z "$FIT_MODEL" ]]; then
+	FIT_MODEL="$(curl -s "${BASE_URL%/}/api/models" "${auth_args[@]}" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+items=data.get('data') or data.get('models') or []
+for m in items:
+    mid=m.get('id') or m.get('model')
+    if mid:
+        print(mid)
+        break
+" 2>/dev/null || true)"
+fi
+if [[ -n "$FIT_MODEL" ]]; then
+	FIT_ENC="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$FIT_MODEL")"
+	check "fit model" GET "/fit/${FIT_ENC}" "200"
+else
+	echo "SKIP  fit model (no model from /api/models)"
+fi
 
 echo
 echo "Summary: ${pass} passed, ${fail} failed"

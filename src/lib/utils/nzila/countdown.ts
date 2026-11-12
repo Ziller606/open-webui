@@ -15,12 +15,15 @@ export const formatCountdownMmSs = (seconds: number): string => {
 	return `${minutes}:${String(remainder).padStart(2, '0')}`;
 };
 
-/** Soonest expiry across loaded models (ms), or null if none. */
-export const soonestExpiryMs = (expires: Array<string | null | undefined>): number | null => {
+/** Soonest future expiry among loaded models (ms), or null if none valid. */
+export const soonestExpiryMs = (
+	expires: Array<string | null | undefined>,
+	nowMs = Date.now()
+): number | null => {
 	let best: number | null = null;
 	for (const raw of expires) {
 		const ms = parseExpiresAtMs(raw ?? null);
-		if (ms === null) continue;
+		if (ms === null || ms <= nowMs) continue;
 		if (best === null || ms < best) best = ms;
 	}
 	return best;

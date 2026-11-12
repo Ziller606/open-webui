@@ -2,6 +2,7 @@
 	import { config, models, settings, user } from '$lib/stores';
 	import { mergeNzilaSettings, readNzilaSettings, type NzilaUserSettings } from '$lib/utils/nzila/defaults';
 	import { computeFitLimits, fitZone } from '$lib/utils/nzila/fit';
+	import { resolveModelNumCtx } from '$lib/utils/nzila/modelCtx';
 	import { nzilaGpu } from '$lib/stores/nzilaGpu';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import UserSettingRow from './UserSettingRow.svelte';
@@ -134,7 +135,8 @@
 					</thead>
 					<tbody>
 						{#each ollamaModels as model (model.id)}
-							{@const ctx = nzila.defaultContextByModel[model.id] ?? 8192}
+							{@const ctx =
+								nzila.defaultContextByModel[model.id] ?? resolveModelNumCtx(model) ?? 8192}
 							<tr class="border-t border-gray-100 dark:border-gray-800">
 								<td class="max-w-[10rem] truncate px-2 py-1">{model.name ?? model.id}</td>
 								<td class="px-2 py-1">
@@ -158,7 +160,7 @@
 		{#if $user?.role === 'admin'}
 			<div class="mt-4 px-1 text-[0.6875rem] text-gray-500 dark:text-gray-400">
 				<p class="font-medium text-gray-600 dark:text-gray-300">Server paths (read-only)</p>
-				<p>Safe ctx: {($config as { nzila?: { safe_ctx?: boolean } }).nzila?.safe_ctx ? 'mounted' : 'not set'}</p>
+				<p>Safe ctx: {$config?.nzila?.safe_ctx ? 'mounted' : 'not set'}</p>
 				<p>
 					Bonsai router: {$config?.features?.nzila_bonsai_router ? 'enabled' : 'not set'}
 				</p>

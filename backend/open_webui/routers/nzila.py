@@ -18,7 +18,11 @@ from open_webui.env import (
     NZILA_SAFE_CTX_PATH,
 )
 from open_webui.models.models import Models
+from open_webui.nzila.bonsai_prefix import resolve_bonsai_prefix_id, strip_bonsai_router_id
+from open_webui.nzila.gpu_stats import normalize_gpu_stats
 from open_webui.nzila.fit import compute_fit_limits
+from open_webui.nzila.model_meta import db_model_bonsai
+from open_webui.nzila.num_ctx import resolve_model_num_ctx
 from open_webui.nzila.loaded import list_loaded_models
 from open_webui.nzila.router_ctx import RouterCtxError, apply_bonsai_context
 from open_webui.nzila.bonsai_router import touch_bonsai_model
@@ -39,6 +43,7 @@ def _require_extensions():
 
 
 async def _fetch_gpu_stats() -> dict[str, Any] | None:
+    """Proxy GPU meter; normalized GB keys for fit."""
     if not NZILA_GPU_METER_ENABLED or not NZILA_GPU_STATS_URL:
         return None
     try:
@@ -47,7 +52,7 @@ async def _fetch_gpu_stats() -> dict[str, Any] | None:
                 if response.status >= 400:
                     return None
                 payload = await response.json(content_type=None)
-                return payload if isinstance(payload, dict) else None
+                return normalize_gpu_stats(payload) if isinstance(payload, dict) else None
     except Exception as exc:
         log.debug('NZILA gpu stats read failed: %s', exc)
         return None
@@ -100,7 +105,7 @@ async def get_gpu_stats(user=Depends(get_verified_user)):
                 payload = await response.json(content_type=None)
                 if not isinstance(payload, dict):
                     raise HTTPException(status_code=502, detail='GPU stats upstream invalid payload')
-                return JSONResponse(content=payload)
+                return JSONResponse(content=normalize_gpu_stats(payload))
     except HTTPException:
         raise
     except aiohttp.ClientError as exc:
@@ -122,9 +127,11 @@ async def get_model_fit(model_id: str, request: Request, user=Depends(get_verifi
     size, param, meta_bonsai = _model_hints(ollama_model)
 
     db_model = await Models.get_model_by_id(model_id)
-    if db_model and db_model.info:
-        meta = (db_model.info or {}).get('meta') or {}
-        meta_bonsai = meta_bonsai or bool(meta.get('nzila_bonsai', False))
+    prefix_id = await resolve_bonsai_prefix_id()
+    if prefix_id and model_id.startswith(f'{prefix_id}.'):
+        meta_bonsai = True
+    elif db_model_bonsai(db_model):
+        meta_bonsai = True
 
     bonsai = bool(override.get('bonsai', False) or meta_bonsai)
     if NZILA_BONSAI_ROUTER_ENABLED and bonsai:
@@ -138,6 +145,9 @@ async def get_model_fit(model_id: str, request: Request, user=Depends(get_verifi
         override=override,
     )
     limits['bonsai'] = bonsai and NZILA_BONSAI_ROUTER_ENABLED
+    num_ctx = await resolve_model_num_ctx(request, user, model_id, db_model=db_model)
+    if num_ctx is not None:
+        limits['num_ctx'] = num_ctx
     return limits
 
 
@@ -155,7 +165,14 @@ async def set_model_context(
         raise HTTPException(status_code=404, detail='Bonsai router not configured')
 
     try:
-        result = await apply_bonsai_context(NZILA_BONSAI_ROUTER_URL, model_id, form_data.ctx)
+        prefix_id = await resolve_bonsai_prefix_id()
+        router_id = strip_bonsai_router_id(model_id, prefix_id)
+        result = await apply_bonsai_context(
+            NZILA_BONSAI_ROUTER_URL,
+            model_id,
+            form_data.ctx,
+            router_model_id=router_id,
+        )
         return {'model': model_id, 'ctx': form_data.ctx, 'router': result}
     except RouterCtxError as exc:
         raise HTTPException(status_code=exc.status if 400 <= exc.status < 600 else 502, detail=exc.detail) from exc
@@ -183,7 +200,8 @@ async def post_unload_all(request: Request, user=Depends(get_verified_user)):
 async def post_bonsai_activity(model_id: str, user=Depends(get_verified_user)):
     """Record last inference time for Bonsai idle countdown (llama-server sleep-idle-seconds)."""
     _require_extensions()
-    touch_bonsai_model(model_id)
+    prefix_id = await resolve_bonsai_prefix_id()
+    touch_bonsai_model(strip_bonsai_router_id(model_id, prefix_id))
     return {'model': model_id, 'ok': True}
 
 

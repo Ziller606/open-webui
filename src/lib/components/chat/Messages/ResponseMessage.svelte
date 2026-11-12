@@ -49,6 +49,7 @@
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
 	import equal from 'fast-deep-equal';
 	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { tokensPerSecond } from '$lib/utils/nzila/tokensPerSec';
 
 	import Name from './Name.svelte';
 	import ProfileImage from './ProfileImage.svelte';
@@ -1105,13 +1106,16 @@
 								</div>
 							{/if}
 
-							{#if message.done && readNzilaSettings($settings).showToksPerSec && message.info?.eval_count && message.info?.eval_duration}
-								<span
-									class="self-center px-1 text-[0.6875rem] tabular-nums text-gray-400 dark:text-gray-500"
-									title="Tokens per second"
-								>
-									{(message.info.eval_count / (message.info.eval_duration / 1e9)).toFixed(1)} tok/s
-								</span>
+							{#if message.done && readNzilaSettings($settings).showToksPerSec}
+								{@const tps = tokensPerSecond(message.usage ?? message.info)}
+								{#if tps !== null}
+									<span
+										class="self-center px-1 text-[0.6875rem] tabular-nums text-gray-400 dark:text-gray-500"
+										title="Tokens per second"
+									>
+										{tps.toFixed(1)} tok/s
+									</span>
+								{/if}
 							{/if}
 
 							{#if message.done}

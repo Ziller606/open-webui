@@ -8,13 +8,14 @@ from typing import Any
 import aiohttp
 
 from open_webui.env import NZILA_BONSAI_IDLE_SECONDS, NZILA_BONSAI_PRESET_PATH
+from open_webui.nzila.bonsai_prefix import with_bonsai_prefix
 
 log = logging.getLogger(__name__)
 
 _LOAD_TIMEOUT = aiohttp.ClientTimeout(total=120)
 _QUICK_TIMEOUT = aiohttp.ClientTimeout(total=8)
 
-LOADED_STATES = frozenset({'loaded', 'sleeping'})
+LOADED_STATES = frozenset({'loaded'})
 _LOADING_STATES = frozenset({'loading'})
 
 _prev_bonsai_loaded: set[str] = set()
@@ -124,6 +125,11 @@ async def resolve_router_idle_seconds(router_base_url: str) -> int:
     return idle
 
 
+async def reload_router_models(router_base_url: str) -> dict[str, Any]:
+    url = router_base_url.rstrip('/') + '/models?reload=1'
+    return await _fetch_json(url)
+
+
 async def fetch_router_models_raw(router_base_url: str) -> list[dict[str, Any]]:
     url = router_base_url.rstrip('/') + '/models'
     payload = await _fetch_json(url)
@@ -133,7 +139,11 @@ async def fetch_router_models_raw(router_base_url: str) -> list[dict[str, Any]]:
     return []
 
 
-async def fetch_bonsai_loaded_models(router_base_url: str) -> list[dict[str, Any]]:
+async def fetch_bonsai_loaded_models(
+    router_base_url: str,
+    *,
+    prefix_id: str | None = None,
+) -> list[dict[str, Any]]:
     global _prev_bonsai_loaded
     idle_seconds = await resolve_router_idle_seconds(router_base_url)
     raw = await fetch_router_models_raw(router_base_url)
@@ -154,9 +164,10 @@ async def fetch_bonsai_loaded_models(router_base_url: str) -> list[dict[str, Any
         last = _bonsai_last_activity.get(mid)
         if last is not None:
             loaded_at = datetime.fromtimestamp(last, tz=timezone.utc).isoformat().replace('+00:00', 'Z')
+        display_id = with_bonsai_prefix(mid, prefix_id)
         loaded.append(
             {
-                'model': mid,
+                'model': display_id,
                 'source': 'bonsai',
                 'size_vram_bytes': _vram_bytes(entry),
                 'loaded_at': loaded_at,
@@ -193,8 +204,14 @@ async def load_router_model(router_base_url: str, model_id: str) -> dict[str, An
     return result
 
 
-async def apply_bonsai_context(router_base_url: str, model_id: str, ctx: int) -> dict[str, Any]:
-    """Change ctx for a router-preset model: patch INI, unload, reload."""
+async def apply_bonsai_context(
+    router_base_url: str,
+    model_id: str,
+    ctx: int,
+    *,
+    router_model_id: str | None = None,
+) -> dict[str, Any]:
+    """Change ctx for a router-preset model: patch INI, reload catalog, unload, load."""
     if not NZILA_BONSAI_PRESET_PATH:
         raise BonsaiRouterError(
             503,
@@ -203,18 +220,21 @@ async def apply_bonsai_context(router_base_url: str, model_id: str, ctx: int) ->
 
     from open_webui.nzila.bonsai_preset import update_preset_ctx_size
 
-    section = update_preset_ctx_size(NZILA_BONSAI_PRESET_PATH, model_id, int(ctx))
+    router_id = router_model_id or model_id
+    section = update_preset_ctx_size(NZILA_BONSAI_PRESET_PATH, router_id, int(ctx))
+
+    steps: list[dict[str, Any]] = [{'preset_section': section, 'ctx': int(ctx)}]
+    steps.append(await reload_router_models(router_base_url))
 
     raw = await fetch_router_models_raw(router_base_url)
     state = None
     for entry in raw:
-        if _model_id(entry) == model_id:
+        if _model_id(entry) == router_id:
             state = _status_value(entry)
             break
 
-    steps: list[dict[str, Any]] = [{'preset_section': section, 'ctx': int(ctx)}]
     if state in LOADED_STATES or state in _LOADING_STATES:
-        steps.append(await unload_router_model(router_base_url, model_id))
-    steps.append(await load_router_model(router_base_url, model_id))
-    touch_bonsai_model(model_id)
+        steps.append(await unload_router_model(router_base_url, router_id))
+    steps.append(await load_router_model(router_base_url, router_id))
+    touch_bonsai_model(router_id)
     return {'model': model_id, 'ctx': int(ctx), 'steps': steps}

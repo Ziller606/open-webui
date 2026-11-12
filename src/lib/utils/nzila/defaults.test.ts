@@ -21,5 +21,6 @@ describe('readNzilaSettings', () => {
 		expect(readNzilaSettings(null).showGpuTopBar).toBe(NZILA_SETTINGS_DEFAULTS.showGpuTopBar);
 		expect(readNzilaSettings(null).vramRedZonePercent).toBe(90);
 		expect(readNzilaSettings(null).showModelToasts).toBe(true);
+		expect(readNzilaSettings(null).showToksPerSec).toBe(true);
 	});
 });

@@ -18,7 +18,10 @@
 	} from '$lib/utils/nzila/fit';
 	import { isVramRedZone, vramPercent } from '$lib/utils/nzila/redzone';
 	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { resolveModelNumCtx } from '$lib/utils/nzila/modelCtx';
 	import { settings } from '$lib/stores';
+	import { config } from '$lib/stores';
+	import { toast } from 'svelte-sonner';
 
 	type ReleasedDetail = { modelId: string; ctx: number; bonsai: boolean };
 
@@ -66,7 +69,10 @@
 	const limitsFor = (modelId: string): FitLimits => {
 		if (fitCache[modelId]) return fitCache[modelId];
 		const override = resolveSafeEntry(modelId);
-		const metaBonsai = !!$models.find((m) => m.id === modelId)?.info?.meta?.nzila_bonsai;
+		const model = $models.find((m) => m.id === modelId);
+		const metaBonsai =
+			!!model?.info?.meta?.nzila_bonsai ||
+			($config?.features?.nzila_bonsai_router && modelId.includes('.') && model?.owned_by === 'openai');
 		const merged = computeFitLimits(hintsForModel(modelId), gpuStats, {
 			...(override ?? {}),
 			bonsai: override?.bonsai ?? metaBonsai
@@ -105,11 +111,12 @@
 		fitCache = Object.fromEntries(modelIds.map((id) => [id, limitsFor(id)]));
 	}
 
-	const displayValue = (modelId: string) =>
-		draft[modelId] ??
-		modelContexts[modelId] ??
-		fitCache[modelId]?.safe_max ??
-		8192;
+	const displayValue = (modelId: string) => {
+		const limits = fitCache[modelId];
+		const model = $models.find((m) => m.id === modelId);
+		const baseCtx = resolveModelNumCtx(model, limits) ?? limits?.safe_max ?? 8192;
+		return draft[modelId] ?? modelContexts[modelId] ?? baseCtx;
+	};
 
 	const trackStyle = (limits: FitLimits, current: number) => {
 		const sliderMax = limits.hard_max || DEFAULT_MAX;
@@ -140,7 +147,7 @@
 			try {
 				await setNzilaBonsaiContext(localStorage.token, modelId, value);
 			} catch (err) {
-				console.error(err);
+				toast.error(err instanceof Error ? err.message : 'Failed to apply Bonsai context');
 			} finally {
 				reloading = { ...reloading, [modelId]: false };
 			}

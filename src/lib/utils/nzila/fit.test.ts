@@ -27,6 +27,10 @@ describe('gpuVramFreeGb', () => {
 	it('subtracts used from total', () => {
 		expect(gpuVramFreeGb({ vram_used_gb: 4, vram_total_gb: 6 })).toBeCloseTo(2);
 	});
+
+	it('accepts mib fields', () => {
+		expect(gpuVramFreeGb({ memory_used_mib: 2048, memory_total_mib: 6144 })).toBeCloseTo(4);
+	});
 });
 
 describe('computeFitLimits', () => {

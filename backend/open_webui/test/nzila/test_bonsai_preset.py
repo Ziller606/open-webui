@@ -3,6 +3,16 @@ from conftest import load_module
 preset_mod = load_module('open_webui.nzila.bonsai_preset', 'nzila/bonsai_preset.py')
 
 
+def test_update_preset_with_preamble(tmp_path):
+    ini = tmp_path / 'webui-models.ini'
+    ini.write_text('version = 1\n\n[m]\nmodel=x\nctx-size=8192\n', encoding='utf-8')
+    section = preset_mod.update_preset_ctx_size(ini, 'm', 16384)
+    assert section == 'm'
+    text = ini.read_text(encoding='utf-8')
+    assert text.startswith('version = 1')
+    assert 'ctx-size=16384' in text
+
+
 def test_update_preset_ctx_size(tmp_path):
     ini = tmp_path / 'webui-models.ini'
     ini.write_text(
