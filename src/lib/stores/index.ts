@@ -447,6 +447,8 @@ type Config = {
 		enable_automations?: boolean;
 		enable_calendar?: boolean;
 		enable_subagents?: boolean;
+		nzila_gpu_meter?: boolean;
+		nzila_context_slider?: boolean;
 		enable_plugins?: boolean;
 		enable_tools?: boolean;
 		enable_functions?: boolean;

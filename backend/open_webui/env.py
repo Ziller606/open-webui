@@ -1288,3 +1288,19 @@ OTEL_METRICS_OTLP_SPAN_EXPORTER = os.getenv(
 OTEL_LOGS_OTLP_SPAN_EXPORTER = os.getenv(
     'OTEL_LOGS_OTLP_SPAN_EXPORTER', OTEL_OTLP_SPAN_EXPORTER
 ).lower()  # grpc or http
+
+# Nzila local extensions (no effect when unset)
+_NZILA_GPU_STATS_URL_RAW = os.environ.get('NZILA_GPU_STATS_URL')
+NZILA_GPU_STATS_URL: str | None
+if _NZILA_GPU_STATS_URL_RAW is None:
+    NZILA_GPU_STATS_URL = None
+else:
+    _gpu_url = _NZILA_GPU_STATS_URL_RAW.strip()
+    NZILA_GPU_STATS_URL = _gpu_url or 'http://127.0.0.1:8197'
+NZILA_GPU_METER_ENABLED = NZILA_GPU_STATS_URL is not None
+
+_NZILA_SAFE_CTX_PATH_RAW = os.environ.get('NZILA_SAFE_CTX_PATH')
+NZILA_SAFE_CTX_PATH = (
+    _NZILA_SAFE_CTX_PATH_RAW.strip() if _NZILA_SAFE_CTX_PATH_RAW and _NZILA_SAFE_CTX_PATH_RAW.strip() else None
+)
+NZILA_CONTEXT_SLIDER_ENABLED = bool(NZILA_SAFE_CTX_PATH)

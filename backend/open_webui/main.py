@@ -126,6 +126,8 @@ from open_webui.env import (
     WEBUI_SECRET_KEY,
     WEBUI_SESSION_COOKIE_SAME_SITE,
     WEBUI_SESSION_COOKIE_SECURE,
+    NZILA_CONTEXT_SLIDER_ENABLED,
+    NZILA_GPU_METER_ENABLED,
 )
 from open_webui.events import (
     EVENTS,
@@ -829,7 +831,7 @@ app.include_router(retrieval.router, prefix='/api/v1/retrieval', tags=['retrieva
 app.include_router(configs.router, prefix='/api/v1/configs', tags=['configs'])
 
 from open_webui.env import UVICORN_WORKERS, REDIS_URL
-from open_webui.routers import tether
+from open_webui.routers import nzila, tether
 
 app.include_router(tether.router, prefix='/api/v1/tether', tags=['tether'])
 app.include_router(auths.router, prefix='/api/v1/auths', tags=['auths'])
@@ -861,6 +863,8 @@ app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['eval
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
+if NZILA_GPU_METER_ENABLED or NZILA_CONTEXT_SLIDER_ENABLED:
+    app.include_router(nzila.router, prefix='/api/v1/nzila', tags=['nzila'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
@@ -2547,6 +2551,16 @@ async def get_app_config(request: Request):
                     'enable_onedrive_integration': config.get('onedrive.enable'),
                     'enable_memories': config.get('memories.enable'),
                     'enable_subagents': config.get('subagents.enable'),
+                    **(
+                        {'nzila_gpu_meter': True}
+                        if NZILA_GPU_METER_ENABLED
+                        else {}
+                    ),
+                    **(
+                        {'nzila_context_slider': True}
+                        if NZILA_CONTEXT_SLIDER_ENABLED
+                        else {}
+                    ),
                     **(
                         {
                             'enable_onedrive_personal': ENABLE_ONEDRIVE_PERSONAL,

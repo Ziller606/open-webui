@@ -45,6 +45,7 @@
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import GpuMeter from '$lib/components/nzila/GpuMeter.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
@@ -494,6 +495,18 @@
 
 				{#if loaded}
 					<main class="contents">
+						{#if $config?.features?.nzila_gpu_meter}
+							<div
+								class="pointer-events-none fixed top-2 z-[70] flex justify-end"
+								style="left: {$showSidebar && !$mobile
+									? 'var(--sidebar-width)'
+									: '0'}; right: 0; padding-right: 0.75rem;"
+							>
+								<div class="pointer-events-auto">
+									<GpuMeter enabled={!!$config?.features?.nzila_gpu_meter} />
+								</div>
+							</div>
+						{/if}
 						<div id="main-content" tabindex="-1" class="sr-only left-0 top-0"></div>
 						<slot />
 					</main>

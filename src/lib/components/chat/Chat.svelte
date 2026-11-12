@@ -143,6 +143,7 @@
 	import DeleteConfirmDialog from '../common/ConfirmDialog.svelte';
 	import WebSearchConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
+	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
 	import FilesOverlay from './MessageInput/FilesOverlay.svelte';
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
@@ -5089,6 +5090,16 @@
 		});
 	};
 
+	const setNumCtx = async (value: number) => {
+		params = { ...params, num_ctx: value };
+		await saveParam('num_ctx', value);
+	};
+
+	$: numCtxValue =
+		params?.num_ctx !== null && params?.num_ctx !== undefined && params?.num_ctx !== ''
+			? Number(params.num_ctx)
+			: null;
+
 	const saveControls = async (models: string[] | null = null) => {
 		if (isShared) return;
 		if (!$chatId || $temporaryChatEnabled || chat?.id !== $chatId) return;
@@ -5623,6 +5634,14 @@
 									id={embedded ? messageInputDropzoneId : undefined}
 									class=" pb-2 {dragged ? 'z-0' : 'z-10'}"
 								>
+									{#if $config?.features?.nzila_context_slider && !isShared}
+										<ContextLengthSlider
+											{selectedModels}
+											numCtx={numCtxValue}
+											disabled={generating}
+											on:change={(e) => setNumCtx(e.detail)}
+										/>
+									{/if}
 									<MessageInput
 										bind:terminalContext
 										{typingUsers}
@@ -5724,6 +5743,14 @@
 									</div>
 								{/if}
 								<div id={embedded ? messageInputDropzoneId : undefined} class="pb-2 z-10">
+									{#if $config?.features?.nzila_context_slider && !isShared}
+										<ContextLengthSlider
+											{selectedModels}
+											numCtx={numCtxValue}
+											disabled={generating}
+											on:change={(e) => setNumCtx(e.detail)}
+										/>
+									{/if}
 									<MessageInput
 										bind:terminalContext
 										{typingUsers}
@@ -5806,6 +5833,9 @@
 									bind:chatFiles
 									bind:params
 									onParamChange={saveParam}
+									{numCtxValue}
+									onNumCtxChange={setNumCtx}
+									{generating}
 									bind:messageInput
 									bind:files
 									bind:prompt
