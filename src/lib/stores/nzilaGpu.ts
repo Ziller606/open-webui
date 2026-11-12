@@ -1,19 +1,31 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { getNzilaGpuStats } from '$lib/apis/nzila';
+import { getNzilaGpuStats, getNzilaLoaded, type NzilaLoadedModel } from '$lib/apis/nzila';
+
+export type NzilaLoadedSnapshot = {
+	model: string;
+	source: string;
+	sizeVramBytes: number | null;
+	loadedAt: string | null;
+	expiresAt: string | null;
+};
 
 export type NzilaGpuSnapshot = {
 	stats: Record<string, unknown> | null;
 	utilPercent: number | null;
 	vramUsedGb: number | null;
 	vramTotalGb: number | null;
+	loadedModels: NzilaLoadedSnapshot[];
+	loadedFetchedAt: number | null;
 };
 
 const empty: NzilaGpuSnapshot = {
 	stats: null,
 	utilPercent: null,
 	vramUsedGb: null,
-	vramTotalGb: null
+	vramTotalGb: null,
+	loadedModels: [],
+	loadedFetchedAt: null
 };
 
 export const nzilaGpu = writable<NzilaGpuSnapshot>(empty);
@@ -29,8 +41,26 @@ const asNumber = (value: unknown): number | null => {
 	return null;
 };
 
-const parseSnapshot = (payload: Record<string, unknown> | null): NzilaGpuSnapshot => {
-	if (!payload) return { ...empty };
+const parseLoaded = (models: NzilaLoadedModel[] | undefined): NzilaLoadedSnapshot[] => {
+	if (!models?.length) return [];
+	return models.map((m) => ({
+		model: m.model,
+		source: m.source,
+		sizeVramBytes: m.size_vram_bytes ?? null,
+		loadedAt: m.loaded_at ?? null,
+		expiresAt: m.expires_at ?? null
+	}));
+};
+
+const parseSnapshot = (payload: Record<string, unknown> | null): Omit<NzilaGpuSnapshot, 'loadedModels' | 'loadedFetchedAt'> => {
+	if (!payload) {
+		return {
+			stats: null,
+			utilPercent: null,
+			vramUsedGb: null,
+			vramTotalGb: null
+		};
+	}
 	const util =
 		asNumber(payload.gpu_utilization) ??
 		asNumber(payload.utilization_gpu) ??
@@ -56,9 +86,18 @@ const parseSnapshot = (payload: Record<string, unknown> | null): NzilaGpuSnapsho
 
 const poll = async () => {
 	if (!active || !tabVisible || !browser) return;
+	const token = localStorage.token;
 	try {
-		const payload = await getNzilaGpuStats(localStorage.token);
-		nzilaGpu.set(parseSnapshot(payload));
+		const [gpuPayload, loadedPayload] = await Promise.all([
+			getNzilaGpuStats(token),
+			getNzilaLoaded(token)
+		]);
+		const base = parseSnapshot(gpuPayload);
+		nzilaGpu.set({
+			...base,
+			loadedModels: parseLoaded(loadedPayload?.models),
+			loadedFetchedAt: Date.now()
+		});
 	} catch {
 		nzilaGpu.set({ ...empty });
 	}
@@ -88,3 +127,7 @@ export const startNzilaGpuPolling = (enabled: boolean, ms = 2000) => {
 };
 
 export const stopNzilaGpuPolling = () => startNzilaGpuPolling(false);
+
+export const refreshNzilaGpu = () => {
+	if (active) void poll();
+};

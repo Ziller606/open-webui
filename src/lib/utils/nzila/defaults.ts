@@ -5,6 +5,9 @@ export type NzilaUserSettings = {
 	pollIntervalMs: number;
 	applyContextLive: boolean;
 	showToksPerSec: boolean;
+	vramRedZonePercent: number;
+	showModelToasts: boolean;
+	showGpuCountdown: boolean;
 	defaultContextByModel: Record<string, number>;
 };
 
@@ -15,6 +18,9 @@ export const NZILA_SETTINGS_DEFAULTS: NzilaUserSettings = {
 	pollIntervalMs: 2000,
 	applyContextLive: true,
 	showToksPerSec: false,
+	vramRedZonePercent: 90,
+	showModelToasts: true,
+	showGpuCountdown: true,
 	defaultContextByModel: {}
 };
 

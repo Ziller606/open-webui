@@ -11,10 +11,14 @@
 	} from '$lib/apis/nzila';
 	import {
 		computeFitLimits,
+		fitZone,
 		formatCtx,
 		type FitLimits,
 		type ModelFitHints
 	} from '$lib/utils/nzila/fit';
+	import { isVramRedZone, vramPercent } from '$lib/utils/nzila/redzone';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { settings } from '$lib/stores';
 
 	type ReleasedDetail = { modelId: string; ctx: number; bonsai: boolean };
 
@@ -35,6 +39,9 @@
 
 	$: modelIds = selectedModels.map((id) => id?.trim()).filter(Boolean);
 	$: gpuStats = $nzilaGpu.stats;
+	$: nzilaPrefs = readNzilaSettings($settings);
+	$: redThreshold = nzilaPrefs.vramRedZonePercent ?? 90;
+	$: headerVramPct = vramPercent($nzilaGpu.vramUsedGb, $nzilaGpu.vramTotalGb);
 
 	const resolveSafeEntry = (modelId: string) => {
 		if (safeLimits[modelId]) return safeLimits[modelId];
@@ -104,17 +111,19 @@
 		fitCache[modelId]?.safe_max ??
 		8192;
 
-	const trackStyle = (limits: FitLimits) => {
+	const trackStyle = (limits: FitLimits, current: number) => {
 		const sliderMax = limits.hard_max || DEFAULT_MAX;
-		const safeEnd = (limits.safe_max / sliderMax) * 100;
-		const tightEnd = (limits.tight_max / sliderMax) * 100;
-		return `linear-gradient(to right,
-			rgb(134 239 172) 0%,
-			rgb(134 239 172) ${safeEnd}%,
-			rgb(252 211 77) ${safeEnd}%,
-			rgb(252 211 77) ${tightEnd}%,
-			rgb(248 113 113) ${tightEnd}%,
-			rgb(248 113 113) 100%)`;
+		const zone = fitZone(current, limits);
+		const tightPct = (limits.tight_max / sliderMax) * 100;
+		const vramRed = isVramRedZone(headerVramPct, redThreshold) || zone === 'over';
+		if (vramRed) {
+			return `linear-gradient(to right,
+				rgb(156 163 175) 0%,
+				rgb(156 163 175) ${tightPct}%,
+				rgb(239 68 68) ${tightPct}%,
+				rgb(239 68 68) 100%)`;
+		}
+		return 'linear-gradient(to right, rgb(156 163 175) 0%, rgb(156 163 175) 100%)';
 	};
 
 	const onInput = (modelId: string, event: Event) => {
@@ -168,7 +177,7 @@
 							value={current}
 							{disabled}
 							class="nzila-ctx-slider h-4 w-full cursor-pointer appearance-none rounded bg-gray-200/90 dark:bg-gray-800"
-							style:background-image={`${trackStyle(limits)}, linear-gradient(to right, rgba(0,0,0,0.12) ${fillPct}%, transparent ${fillPct}%)`}
+							style:background-image={`${trackStyle(limits, current)}, linear-gradient(to right, rgba(0,0,0,0.18) ${fillPct}%, transparent ${fillPct}%)`}
 							aria-label="Context length for {modelId}"
 							on:input={(e) => onInput(modelId, e)}
 							on:change={() => onRelease(modelId, limits)}

@@ -3,6 +3,7 @@
 	import { mergeNzilaSettings, readNzilaSettings, type NzilaUserSettings } from '$lib/utils/nzila/defaults';
 	import { computeFitLimits, fitZone } from '$lib/utils/nzila/fit';
 	import { nzilaGpu } from '$lib/stores/nzilaGpu';
+	import Switch from '$lib/components/common/Switch.svelte';
 	import UserSettingRow from './UserSettingRow.svelte';
 	import UserSettingSection from './UserSettingSection.svelte';
 
@@ -53,27 +54,15 @@
 		</p>
 	{:else}
 		<UserSettingRow label="GPU top bar" description="Thin VRAM bar across the top of chat">
-			<input
-				type="checkbox"
-				class="size-4 rounded border-gray-300"
-				checked={nzila.showGpuTopBar}
-				on:change={(e) => persist({ showGpuTopBar: e.currentTarget.checked })}
-			/>
+			<Switch bind:state={nzila.showGpuTopBar} on:change={() => persist({ showGpuTopBar: nzila.showGpuTopBar })} />
 		</UserSettingRow>
-		<UserSettingRow label="GPU meter" description="Percent and VRAM chip in the header">
-			<input
-				type="checkbox"
-				class="size-4 rounded border-gray-300"
-				checked={nzila.showGpuMeter}
-				on:change={(e) => persist({ showGpuMeter: e.currentTarget.checked })}
-			/>
+		<UserSettingRow label="GPU meter" description="VRAM chip with loaded models and unload actions">
+			<Switch bind:state={nzila.showGpuMeter} on:change={() => persist({ showGpuMeter: nzila.showGpuMeter })} />
 		</UserSettingRow>
 		<UserSettingRow label="Context slider" description="Per-model context controls in chat">
-			<input
-				type="checkbox"
-				class="size-4 rounded border-gray-300"
-				checked={nzila.showContextSlider}
-				on:change={(e) => persist({ showContextSlider: e.currentTarget.checked })}
+			<Switch
+				bind:state={nzila.showContextSlider}
+				on:change={() => persist({ showContextSlider: nzila.showContextSlider })}
 			/>
 		</UserSettingRow>
 		<UserSettingRow label="Polling interval (ms)">
@@ -88,25 +77,47 @@
 			/>
 		</UserSettingRow>
 		<UserSettingRow
+			label="VRAM red zone (%)"
+			description="GPU bar and chip use red above this VRAM fill (default 90)"
+		>
+			<input
+				type="number"
+				min="50"
+				max="99"
+				step="1"
+				class="w-16 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+				value={nzila.vramRedZonePercent}
+				on:change={(e) => persist({ vramRedZonePercent: Number(e.currentTarget.value) || 90 })}
+			/>
+		</UserSettingRow>
+		<UserSettingRow
 			label="Apply context live"
 			description="Save context to the chat when you release the slider"
 		>
-			<input
-				type="checkbox"
-				class="size-4 rounded border-gray-300"
-				checked={nzila.applyContextLive}
-				on:change={(e) => persist({ applyContextLive: e.currentTarget.checked })}
+			<Switch
+				bind:state={nzila.applyContextLive}
+				on:change={() => persist({ applyContextLive: nzila.applyContextLive })}
+			/>
+		</UserSettingRow>
+		<UserSettingRow label="Model load toasts" description="Loading, loaded timing, unload, and model switch">
+			<Switch
+				bind:state={nzila.showModelToasts}
+				on:change={() => persist({ showModelToasts: nzila.showModelToasts })}
+			/>
+		</UserSettingRow>
+		<UserSettingRow label="GPU free countdown" description="Show time until VRAM is freed (from Ollama expires_at)">
+			<Switch
+				bind:state={nzila.showGpuCountdown}
+				on:change={() => persist({ showGpuCountdown: nzila.showGpuCountdown })}
 			/>
 		</UserSettingRow>
 		<UserSettingRow
 			label="Show tok/s under replies"
-			description="Uses Ollama eval_count and eval_duration on each assistant message (no extra metadata yet)"
+			description="Uses Ollama eval_count and eval_duration on each assistant message"
 		>
-			<input
-				type="checkbox"
-				class="size-4 rounded border-gray-300"
-				checked={nzila.showToksPerSec}
-				on:change={(e) => persist({ showToksPerSec: e.currentTarget.checked })}
+			<Switch
+				bind:state={nzila.showToksPerSec}
+				on:change={() => persist({ showToksPerSec: nzila.showToksPerSec })}
 			/>
 		</UserSettingRow>
 

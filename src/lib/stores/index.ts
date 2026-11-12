@@ -313,6 +313,9 @@ type Settings = {
 		pollIntervalMs?: number;
 		applyContextLive?: boolean;
 		showToksPerSec?: boolean;
+		vramRedZonePercent?: number;
+		showModelToasts?: boolean;
+		showGpuCountdown?: boolean;
 		defaultContextByModel?: Record<string, number>;
 	};
 	userLocation?: any;

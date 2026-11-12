@@ -146,6 +146,13 @@
 	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
 	import GpuTopBar from '$lib/components/nzila/GpuTopBar.svelte';
 	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import {
+		nzilaOnFirstToken,
+		nzilaOnInferenceDone,
+		nzilaOnLoadStart,
+		nzilaOnModelSwitch
+	} from '$lib/utils/nzila/lifecycle';
+	import { refreshNzilaGpu } from '$lib/stores/nzilaGpu';
 	import FilesOverlay from './MessageInput/FilesOverlay.svelte';
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
@@ -230,6 +237,7 @@
 	};
 
 	let selectedModels = [''];
+	let nzilaPrevPrimaryModel = '';
 	let selectedModelIdx = 0;
 	$: selectedModelIdx = Math.max(0, selectedModels.length - 1);
 	$: backgroundImage = embedded
@@ -1662,6 +1670,10 @@
 					} else {
 						await chatCompletionEventHandler(data, message, event.chat_id, event.shared);
 					}
+					if ($config?.features?.nzila_local_gpu) {
+						if (message?.model) nzilaOnInferenceDone(message.model);
+						refreshNzilaGpu();
+					}
 					autoScrollToBottom();
 				} else if (type === 'chat:tasks:cancel') {
 					for (const interaction of browserInteractions) {
@@ -1688,7 +1700,17 @@
 						message.done = true;
 					}
 				} else if (type === 'chat:message:delta' || type === 'message') {
+					const hadContent = Boolean(message.content?.length);
 					message.content += data.content;
+					if (
+						$config?.features?.nzila_local_gpu &&
+						!hadContent &&
+						message.model &&
+						data?.content
+					) {
+						const nzilaModel = $models.find((m) => m.id === message.model);
+						nzilaOnFirstToken(message.model, nzilaModel?.name ?? message.model);
+					}
 				} else if (type === 'chat:message' || type === 'replace') {
 					message.content = data.content;
 				} else if (type === 'chat:message:voice') {
@@ -4373,6 +4395,12 @@
 			const chatEventEmitter = await getChatEventEmitter(primaryModel.id, _chatId);
 
 			try {
+				if ($config?.features?.nzila_local_gpu) {
+					for (const mid of selectedModelIds) {
+						const nzilaModel = $models.find((m) => m.id === mid);
+						nzilaOnLoadStart(mid, nzilaModel?.name ?? mid);
+					}
+				}
 				scrollToBottom();
 				const completion = await sendMessageSocket(
 					primaryModel,
@@ -5093,6 +5121,15 @@
 	};
 
 	$: nzilaPrefs = readNzilaSettings($settings);
+
+	$: if ($config?.features?.nzila_local_gpu) {
+		const primary = selectedModels.map((id) => id?.trim()).filter(Boolean).at(-1) ?? '';
+		if (nzilaPrevPrimaryModel && primary && primary !== nzilaPrevPrimaryModel) {
+			const switched = $models.find((m) => m.id === primary);
+			nzilaOnModelSwitch(primary, switched?.name ?? primary);
+		}
+		nzilaPrevPrimaryModel = primary;
+	}
 
 	$: nzilaModelContexts = (() => {
 		const fromParams = (params?.nzila_context ?? {}) as Record<string, number>;

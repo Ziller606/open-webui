@@ -19,7 +19,10 @@ from open_webui.env import (
 )
 from open_webui.models.models import Models
 from open_webui.nzila.fit import compute_fit_limits
+from open_webui.nzila.loaded import list_loaded_models
 from open_webui.nzila.router_ctx import RouterCtxError, apply_bonsai_context
+from open_webui.nzila.bonsai_router import touch_bonsai_model
+from open_webui.nzila.unload import UnloadError, unload_all_models, unload_model
 from open_webui.nzila.safe_ctx import SCHEMA_DOC, load_safe_ctx_file
 from open_webui.utils.auth import get_verified_user
 
@@ -158,6 +161,40 @@ async def set_model_context(
         raise HTTPException(status_code=exc.status if 400 <= exc.status < 600 else 502, detail=exc.detail) from exc
     except aiohttp.ClientError as exc:
         raise HTTPException(status_code=503, detail='Bonsai router unavailable') from exc
+
+
+@router.get('/loaded')
+async def get_loaded_models(request: Request, user=Depends(get_verified_user)):
+    _require_extensions()
+    models = await list_loaded_models(request, user)
+    return {'models': models}
+
+
+@router.post('/unload-all')
+async def post_unload_all(request: Request, user=Depends(get_verified_user)):
+    _require_extensions()
+    try:
+        return await unload_all_models(request, user)
+    except UnloadError as exc:
+        raise HTTPException(status_code=400, detail=exc.detail) from exc
+
+
+@router.post('/activity/{model_id}')
+async def post_bonsai_activity(model_id: str, user=Depends(get_verified_user)):
+    """Record last inference time for Bonsai idle countdown (llama-server sleep-idle-seconds)."""
+    _require_extensions()
+    touch_bonsai_model(model_id)
+    return {'model': model_id, 'ok': True}
+
+
+@router.post('/unload/{model_id}')
+async def post_unload_model(model_id: str, request: Request, user=Depends(get_verified_user)):
+    _require_extensions()
+    try:
+        return await unload_model(request, user, model_id)
+    except UnloadError as exc:
+        status = 404 if exc.code == 'not_found' else 502
+        raise HTTPException(status_code=status, detail=exc.detail) from exc
 
 
 @router.get('/config')

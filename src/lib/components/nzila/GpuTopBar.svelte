@@ -1,33 +1,35 @@
 <script lang="ts">
 	import { nzilaGpu } from '$lib/stores/nzilaGpu';
+	import { settings } from '$lib/stores';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { utilBarFillClass, vramBarFillClass, vramPercent } from '$lib/utils/nzila/redzone';
 
 	export let enabled = false;
 
 	$: snap = $nzilaGpu;
+	$: nzila = readNzilaSettings($settings);
+	$: threshold = nzila.vramRedZonePercent ?? 90;
 	$: visible =
 		enabled && snap.vramTotalGb !== null && snap.vramUsedGb !== null && snap.vramTotalGb > 0;
-	$: vramPct = visible ? Math.min(100, (snap.vramUsedGb! / snap.vramTotalGb!) * 100) : 0;
+	$: vramPct = visible ? vramPercent(snap.vramUsedGb, snap.vramTotalGb) : null;
 	$: utilPct = snap.utilPercent ?? 0;
-	$: barClass =
-		vramPct < 72 ? 'bg-emerald-500/90' : vramPct < 88 ? 'bg-amber-400/90' : 'bg-red-500/85';
-	$: utilClass =
-		utilPct < 55 ? 'bg-emerald-400/50' : utilPct < 82 ? 'bg-amber-300/55' : 'bg-red-400/55';
+	$: fillClass = vramBarFillClass(vramPct, threshold);
+	$: utilClass = utilBarFillClass(utilPct);
 
 	const fmt = (v: number | null) => (v === null ? '—' : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 </script>
 
-{#if visible}
+{#if visible && vramPct !== null}
 	<div
-		class="pointer-events-auto relative z-20 h-1 w-full shrink-0 overflow-hidden bg-gray-200/80 dark:bg-gray-800/80"
-		title={utilPct >= 55 ? 'GPU busy' : 'GPU free'}
-		aria-label={utilPct >= 55 ? 'GPU busy' : 'GPU free'}
+		class="pointer-events-auto relative z-20 h-1 w-full shrink-0 overflow-hidden bg-gray-200 dark:bg-gray-800"
+		aria-label="VRAM {fmt(snap.vramUsedGb)}/{fmt(snap.vramTotalGb)} GB"
 	>
 		<div
-			class="absolute inset-y-0 left-0 transition-[width] duration-500 ease-out {barClass}"
+			class="absolute inset-y-0 left-0 transition-[width] duration-500 ease-out {fillClass}"
 			style:width="{vramPct}%"
 		></div>
 		<div
-			class="absolute inset-y-0 left-0 mix-blend-multiply dark:mix-blend-screen transition-[width] duration-500 {utilClass}"
+			class="absolute inset-y-0 left-0 transition-[width] duration-500 {utilClass}"
 			style:width="{utilPct}%"
 		></div>
 		<span class="sr-only"

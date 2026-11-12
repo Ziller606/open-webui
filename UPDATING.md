@@ -12,7 +12,9 @@ Custom code lives under:
 |----------|----------|---------|
 | `NZILA_SAFE_CTX_PATH` | Path to JSON on the host (mount read-only into the container) | Per-model overrides + fit hints; optional if you rely on live GPU estimates only |
 | `NZILA_GPU_STATS_URL` | Present in env (`=` alone → `http://127.0.0.1:8197`) | GPU meter, top bar, dynamic fit colouring |
-| `NZILA_BONSAI_ROUTER_URL` | Present in env (`=` alone → `http://127.0.0.1:8096`) | Live context reload for Bonsai models via router admin API |
+| `NZILA_BONSAI_ROUTER_URL` | Present in env (`=` alone → `http://127.0.0.1:8096`) | llama-server **router mode** (`GET/POST /models`, `POST /models/load`, `POST /models/unload`) |
+| `NZILA_BONSAI_PRESET_PATH` | Path to `webui-models.ini` (read-write mount) | Live context: rewrite `ctx-size`, then unload/load via router |
+| `NZILA_BONSAI_IDLE_SECONDS` | Optional (default `300`) | Bonsai GPU countdown when `/props` does not expose sleep idle |
 
 Unset **all three** → stock Open WebUI (no `/api/v1/nzila/*`, no Local GPU UI).
 

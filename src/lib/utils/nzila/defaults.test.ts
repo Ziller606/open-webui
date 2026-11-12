@@ -19,5 +19,7 @@ describe('readNzilaSettings', () => {
 	it('reads from settings.nzila', () => {
 		expect(readNzilaSettings({ nzila: { showGpuMeter: false } }).showGpuMeter).toBe(false);
 		expect(readNzilaSettings(null).showGpuTopBar).toBe(NZILA_SETTINGS_DEFAULTS.showGpuTopBar);
+		expect(readNzilaSettings(null).vramRedZonePercent).toBe(90);
+		expect(readNzilaSettings(null).showModelToasts).toBe(true);
 	});
 });

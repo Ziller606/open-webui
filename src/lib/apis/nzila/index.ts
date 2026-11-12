@@ -44,6 +44,66 @@ export const getNzilaModelFit = async (token: string, modelId: string): Promise<
 	return res.json();
 };
 
+export type NzilaLoadedModel = {
+	model: string;
+	source: 'ollama' | 'bonsai' | string;
+	size_vram_bytes: number | null;
+	loaded_at: string | null;
+	expires_at: string | null;
+};
+
+export type NzilaLoadedResponse = {
+	models: NzilaLoadedModel[];
+};
+
+export const getNzilaLoaded = async (token: string): Promise<NzilaLoadedResponse | null> => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/loaded`, {
+		headers: {
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	});
+	if (res.status === 404) return null;
+	if (!res.ok) return null;
+	return res.json();
+};
+
+export const nzilaUnloadModel = async (token: string, modelId: string) => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/unload/${encodeURIComponent(modelId)}`, {
+		method: 'POST',
+		headers: {
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	});
+	if (!res.ok) {
+		const text = await res.text();
+		throw new Error(text || 'Failed to unload model');
+	}
+	return res.json();
+};
+
+export const nzilaTouchActivity = async (token: string, modelId: string) => {
+	await fetch(`${WEBUI_API_BASE_URL}/nzila/activity/${encodeURIComponent(modelId)}`, {
+		method: 'POST',
+		headers: {
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	});
+};
+
+export const nzilaUnloadAll = async (token: string) => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/unload-all`, {
+		method: 'POST',
+		headers: {
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	});
+	if (!res.ok) {
+		const text = await res.text();
+		throw new Error(text || 'Failed to free GPU');
+	}
+	return res.json();
+};
+
 export const setNzilaBonsaiContext = async (token: string, modelId: string, ctx: number) => {
 	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/ctx/${encodeURIComponent(modelId)}`, {
 		method: 'POST',
