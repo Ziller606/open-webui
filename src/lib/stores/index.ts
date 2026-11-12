@@ -306,6 +306,18 @@ type Settings = {
 	showFormattingToolbar?: boolean;
 	showInputSelections?: boolean;
 	params?: any;
+	nzila?: {
+		showGpuTopBar?: boolean;
+		showGpuMeter?: boolean;
+		showContextSlider?: boolean;
+		pollIntervalMs?: number;
+		applyContextLive?: boolean;
+		showToksPerSec?: boolean;
+		vramRedZonePercent?: number;
+		showModelToasts?: boolean;
+		showGpuCountdown?: boolean;
+		defaultContextByModel?: Record<string, number>;
+	};
 	userLocation?: any;
 	webSearch?: any;
 	memory?: boolean;
@@ -416,6 +428,11 @@ type Config = {
 	default_pinned_models?: string | null;
 	default_prompt_suggestions: PromptSuggestion[] | null;
 	default_prompt_suggestions_i18n?: Record<string, { suggestion_prompts: PromptSuggestion[] }>;
+	nzila?: {
+		safe_ctx?: boolean;
+		gpu_meter?: boolean;
+		bonsai_router?: boolean;
+	};
 	features: {
 		enable_encrypted_channels?: boolean;
 		slim?: boolean;
@@ -447,6 +464,10 @@ type Config = {
 		enable_automations?: boolean;
 		enable_calendar?: boolean;
 		enable_subagents?: boolean;
+		nzila_local_gpu?: boolean;
+		nzila_gpu_meter?: boolean;
+		nzila_context_slider?: boolean;
+		nzila_bonsai_router?: boolean;
 		enable_plugins?: boolean;
 		enable_tools?: boolean;
 		enable_functions?: boolean;

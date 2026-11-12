@@ -46,7 +46,6 @@
 	import { getOutputText } from './Messages/structuredOutput';
 	import { refreshChatList, refreshFolderChatLists } from '$lib/stores/chatList';
 	import ChatParticipants from '$lib/components/common/ChatParticipants.svelte';
-
 	const i18n: any = getContext('i18n');
 
 	export let initNewChat: Function;

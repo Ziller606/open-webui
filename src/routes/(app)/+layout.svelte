@@ -45,6 +45,7 @@
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import GpuMeter from '$lib/components/nzila/GpuMeter.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
@@ -52,10 +53,22 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { loadKeybindings, matchKeybinding, Shortcut } from '$lib/shortcuts';
 	import { canUseTemporaryChats } from '$lib/utils/settings-access';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { startNzilaGpuPolling, stopNzilaGpuPolling } from '$lib/stores/nzilaGpu';
 
 	const i18n = getContext('i18n');
 
 	let loaded = false;
+
+	$: nzilaPrefs = readNzilaSettings($settings);
+	$: nzilaPollActive =
+		!!$config?.features?.nzila_local_gpu &&
+		!!$config?.features?.nzila_gpu_meter &&
+		(nzilaPrefs.showGpuMeter || nzilaPrefs.showGpuTopBar || nzilaPrefs.showContextSlider);
+	$: if (loaded) {
+		if (nzilaPollActive) startNzilaGpuPolling(true, nzilaPrefs.pollIntervalMs);
+		else stopNzilaGpuPolling();
+	}
 
 	let version;
 	let handledSettingsUrl = '';
@@ -494,6 +507,18 @@
 
 				{#if loaded}
 					<main class="contents">
+						{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showGpuMeter && $config?.features?.nzila_gpu_meter}
+							<div
+								class="pointer-events-none fixed top-2 z-[70] flex justify-end"
+								style="left: {$showSidebar && !$mobile
+									? 'var(--sidebar-width)'
+									: '0'}; right: 0; padding-right: 0.75rem;"
+							>
+								<div class="pointer-events-auto">
+									<GpuMeter enabled />
+								</div>
+							</div>
+						{/if}
 						<div id="main-content" tabindex="-1" class="sr-only left-0 top-0"></div>
 						<slot />
 					</main>

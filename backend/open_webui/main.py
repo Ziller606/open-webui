@@ -126,6 +126,11 @@ from open_webui.env import (
     WEBUI_SECRET_KEY,
     WEBUI_SESSION_COOKIE_SAME_SITE,
     WEBUI_SESSION_COOKIE_SECURE,
+    NZILA_BONSAI_ROUTER_ENABLED,
+    NZILA_CONTEXT_SLIDER_ENABLED,
+    NZILA_EXTENSIONS_ENABLED,
+    NZILA_GPU_METER_ENABLED,
+    NZILA_SAFE_CTX_PATH,
 )
 from open_webui.events import (
     EVENTS,
@@ -829,7 +834,7 @@ app.include_router(retrieval.router, prefix='/api/v1/retrieval', tags=['retrieva
 app.include_router(configs.router, prefix='/api/v1/configs', tags=['configs'])
 
 from open_webui.env import UVICORN_WORKERS, REDIS_URL
-from open_webui.routers import tether
+from open_webui.routers import nzila, tether
 
 app.include_router(tether.router, prefix='/api/v1/tether', tags=['tether'])
 app.include_router(auths.router, prefix='/api/v1/auths', tags=['auths'])
@@ -861,6 +866,8 @@ app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['eval
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
+if NZILA_EXTENSIONS_ENABLED:
+    app.include_router(nzila.router, prefix='/api/v1/nzila', tags=['nzila'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
@@ -2549,6 +2556,16 @@ async def get_app_config(request: Request):
                     'enable_subagents': config.get('subagents.enable'),
                     **(
                         {
+                            'nzila_local_gpu': True,
+                            'nzila_gpu_meter': NZILA_GPU_METER_ENABLED,
+                            'nzila_context_slider': NZILA_CONTEXT_SLIDER_ENABLED,
+                            'nzila_bonsai_router': NZILA_BONSAI_ROUTER_ENABLED,
+                        }
+                        if NZILA_EXTENSIONS_ENABLED
+                        else {}
+                    ),
+                    **(
+                        {
                             'enable_onedrive_personal': ENABLE_ONEDRIVE_PERSONAL,
                             'enable_onedrive_business': ENABLE_ONEDRIVE_BUSINESS,
                         }
@@ -2560,6 +2577,17 @@ async def get_app_config(request: Request):
                 else {}
             ),
         },
+        **(
+            {
+                'nzila': {
+                    'safe_ctx': bool(NZILA_SAFE_CTX_PATH),
+                    'gpu_meter': NZILA_GPU_METER_ENABLED,
+                    'bonsai_router': NZILA_BONSAI_ROUTER_ENABLED,
+                }
+            }
+            if NZILA_EXTENSIONS_ENABLED and user is not None
+            else {}
+        ),
         **(
             {
                 'default_models': ','.join(group_defaults) if group_defaults else config.get('ui.default_models'),

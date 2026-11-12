@@ -32,6 +32,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
 	import MessageInput from './MessageInput.svelte';
+	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 
@@ -50,6 +51,10 @@
 	export let chatFiles: any[] = [];
 	export let params: Record<string, any> = {};
 	export let onParamChange: (key: string, value: unknown) => void = () => {};
+	export let modelContexts: Record<string, number> = {};
+	export let onContextRelease: (event: CustomEvent<{ modelId: string; ctx: number; bonsai: boolean }>) => void = () => {};
+	export let showContextSlider = false;
+	export let generating = false;
 
 	export let history;
 	export let chatId = '';
@@ -258,6 +263,14 @@
 
 			<div class="text-base font-normal @md:max-w-3xl w-full py-3 {atSelectedModel ? 'mt-2' : ''}">
 				{#if !($selectedFolder && folderReadOnly)}
+					{#if showContextSlider}
+						<ContextLengthSlider
+							{selectedModels}
+							{modelContexts}
+							disabled={generating}
+							on:release={onContextRelease}
+						/>
+					{/if}
 					<MessageInput
 						{chatId}
 						bind:terminalContext

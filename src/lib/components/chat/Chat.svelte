@@ -143,6 +143,17 @@
 	import DeleteConfirmDialog from '../common/ConfirmDialog.svelte';
 	import WebSearchConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
+	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
+	import GpuTopBar from '$lib/components/nzila/GpuTopBar.svelte';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
+	import { resolveModelNumCtx } from '$lib/utils/nzila/modelCtx';
+	import {
+		nzilaOnFirstToken,
+		nzilaOnInferenceDone,
+		nzilaOnLoadStart,
+		nzilaOnModelSwitch
+	} from '$lib/utils/nzila/lifecycle';
+	import { refreshNzilaGpu } from '$lib/stores/nzilaGpu';
 	import FilesOverlay from './MessageInput/FilesOverlay.svelte';
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
@@ -227,6 +238,8 @@
 	};
 
 	let selectedModels = [''];
+	let nzilaPrevPrimaryModel = '';
+	const nzilaFirstTokenByMessage = new Set<string>();
 	let selectedModelIdx = 0;
 	$: selectedModelIdx = Math.max(0, selectedModels.length - 1);
 	$: backgroundImage = embedded
@@ -1658,6 +1671,25 @@
 						responseCompletionEventHandler(data, message);
 					} else {
 						await chatCompletionEventHandler(data, message, event.chat_id, event.shared);
+						if ($config?.features?.nzila_local_gpu && message?.model) {
+							const delta = data?.choices?.[0]?.delta?.content;
+							const chunk =
+								(typeof data?.content === 'string' && data.content) ||
+								(typeof delta === 'string' && delta);
+							if (chunk && !nzilaFirstTokenByMessage.has(message.id)) {
+								nzilaFirstTokenByMessage.add(message.id);
+								const nzilaModel = $models.find((m) => m.id === message.model);
+								nzilaOnFirstToken(message.model, nzilaModel?.name ?? message.model);
+							}
+							if (data?.done) {
+								nzilaOnInferenceDone(message.model);
+								refreshNzilaGpu();
+							}
+						}
+					}
+					if ($config?.features?.nzila_local_gpu && type === 'response:completion' && data?.done) {
+						if (message?.model) nzilaOnInferenceDone(message.model);
+						refreshNzilaGpu();
 					}
 					autoScrollToBottom();
 				} else if (type === 'chat:tasks:cancel') {
@@ -1685,7 +1717,19 @@
 						message.done = true;
 					}
 				} else if (type === 'chat:message:delta' || type === 'message') {
+					const hadContent = Boolean(message.content?.length);
 					message.content += data.content;
+					if (
+						$config?.features?.nzila_local_gpu &&
+						!hadContent &&
+						message.model &&
+						data?.content &&
+						!nzilaFirstTokenByMessage.has(message.id)
+					) {
+						nzilaFirstTokenByMessage.add(message.id);
+						const nzilaModel = $models.find((m) => m.id === message.model);
+						nzilaOnFirstToken(message.model, nzilaModel?.name ?? message.model);
+					}
 				} else if (type === 'chat:message' || type === 'replace') {
 					message.content = data.content;
 				} else if (type === 'chat:message:voice') {
@@ -3685,6 +3729,9 @@
 
 		if (usage) {
 			message.usage = usage;
+			if (usage.eval_count && usage.eval_duration) {
+				message.info = { ...(message.info ?? {}), ...usage };
+			}
 			captureUsageCheckpoint(message);
 		}
 
@@ -4370,6 +4417,12 @@
 			const chatEventEmitter = await getChatEventEmitter(primaryModel.id, _chatId);
 
 			try {
+				if ($config?.features?.nzila_local_gpu) {
+					for (const mid of selectedModelIds) {
+						const nzilaModel = $models.find((m) => m.id === mid);
+						nzilaOnLoadStart(mid, nzilaModel?.name ?? mid);
+					}
+				}
 				scrollToBottom();
 				const completion = await sendMessageSocket(
 					primaryModel,
@@ -5089,6 +5142,53 @@
 		});
 	};
 
+	$: nzilaPrefs = readNzilaSettings($settings);
+
+	$: if ($config?.features?.nzila_local_gpu) {
+		const primary = selectedModels.map((id) => id?.trim()).filter(Boolean).at(-1) ?? '';
+		if (nzilaPrevPrimaryModel && primary && primary !== nzilaPrevPrimaryModel) {
+			const switched = $models.find((m) => m.id === primary);
+			nzilaOnModelSwitch(primary, switched?.name ?? primary);
+		}
+		nzilaPrevPrimaryModel = primary;
+	}
+
+	$: nzilaModelContexts = (() => {
+		const fromParams = (params?.nzila_context ?? {}) as Record<string, number>;
+		const defaults = nzilaPrefs.defaultContextByModel ?? {};
+		const merged: Record<string, number> = { ...defaults, ...fromParams };
+		for (const modelId of selectedModels.filter(Boolean)) {
+			if (merged[modelId] === undefined) {
+				const model = $models.find((m) => m.id === modelId);
+				const fromModel = resolveModelNumCtx(model);
+				if (fromModel !== undefined) {
+					merged[modelId] = fromModel;
+					continue;
+				}
+				const n = params?.num_ctx;
+				merged[modelId] =
+					n !== null && n !== undefined && n !== '' ? Number(n) : 8192;
+			}
+		}
+		return merged;
+	})();
+
+	const onContextRelease = async (event: CustomEvent<{ modelId: string; ctx: number; bonsai: boolean }>) => {
+		const { modelId, ctx } = event.detail;
+		const nzila_context = { ...(params.nzila_context ?? {}), [modelId]: ctx };
+		params = {
+			...params,
+			nzila_context,
+			...(selectedModels[0] === modelId || selectedModels.length === 1 ? { num_ctx: ctx } : {})
+		};
+		if (nzilaPrefs.applyContextLive) {
+			await saveParam('nzila_context', nzila_context);
+			if (selectedModels[0] === modelId || selectedModels.length === 1) {
+				await saveParam('num_ctx', ctx);
+			}
+		}
+	};
+
 	const saveControls = async (models: string[] | null = null) => {
 		if (isShared) return;
 		if (!$chatId || $temporaryChatEnabled || chat?.id !== $chatId) return;
@@ -5552,6 +5652,9 @@
 						/>
 					{/if}
 					<div id="chat-pane" class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
+						{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showGpuTopBar && $config?.features?.nzila_gpu_meter}
+							<GpuTopBar enabled />
+						{/if}
 						<div class="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
 							<div
@@ -5623,6 +5726,14 @@
 									id={embedded ? messageInputDropzoneId : undefined}
 									class=" pb-2 {dragged ? 'z-0' : 'z-10'}"
 								>
+									{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider && !isShared}
+										<ContextLengthSlider
+											{selectedModels}
+											modelContexts={nzilaModelContexts}
+											disabled={generating}
+											on:release={onContextRelease}
+										/>
+									{/if}
 									<MessageInput
 										bind:terminalContext
 										{typingUsers}
@@ -5724,6 +5835,14 @@
 									</div>
 								{/if}
 								<div id={embedded ? messageInputDropzoneId : undefined} class="pb-2 z-10">
+									{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider && !isShared}
+										<ContextLengthSlider
+											{selectedModels}
+											modelContexts={nzilaModelContexts}
+											disabled={generating}
+											on:release={onContextRelease}
+										/>
+									{/if}
 									<MessageInput
 										bind:terminalContext
 										{typingUsers}
@@ -5806,6 +5925,10 @@
 									bind:chatFiles
 									bind:params
 									onParamChange={saveParam}
+									modelContexts={nzilaModelContexts}
+									onContextRelease={onContextRelease}
+									showContextSlider={$config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider}
+									{generating}
 									bind:messageInput
 									bind:files
 									bind:prompt
