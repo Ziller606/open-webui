@@ -306,6 +306,15 @@ type Settings = {
 	showFormattingToolbar?: boolean;
 	showInputSelections?: boolean;
 	params?: any;
+	nzila?: {
+		showGpuTopBar?: boolean;
+		showGpuMeter?: boolean;
+		showContextSlider?: boolean;
+		pollIntervalMs?: number;
+		applyContextLive?: boolean;
+		showToksPerSec?: boolean;
+		defaultContextByModel?: Record<string, number>;
+	};
 	userLocation?: any;
 	webSearch?: any;
 	memory?: boolean;
@@ -447,8 +456,10 @@ type Config = {
 		enable_automations?: boolean;
 		enable_calendar?: boolean;
 		enable_subagents?: boolean;
+		nzila_local_gpu?: boolean;
 		nzila_gpu_meter?: boolean;
 		nzila_context_slider?: boolean;
+		nzila_bonsai_router?: boolean;
 		enable_plugins?: boolean;
 		enable_tools?: boolean;
 		enable_functions?: boolean;

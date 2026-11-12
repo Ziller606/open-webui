@@ -1,76 +1,71 @@
 # Updating Nzila custom Open WebUI
 
-This fork layers **context slider + GPU meter** on upstream Open WebUI. Custom code is isolated under:
+Custom code lives under:
 
 - `backend/open_webui/nzila/` and `backend/open_webui/routers/nzila.py`
-- `src/lib/components/nzila/`, `src/lib/apis/nzila/`
-- Small hooks in `main.py`, `env.py`, `Chat.svelte`, `Placeholder.svelte`, `(app)/+layout.svelte`
+- `src/lib/components/nzila/`, `src/lib/apis/nzila/`, `src/lib/utils/nzila/`
+- Small hooks in `main.py`, `env.py`, `Chat.svelte`, `Placeholder.svelte`, `(app)/+layout.svelte`, `SettingsModal.svelte`
 
 ## Environment variables
 
 | Variable | When set | Purpose |
 |----------|----------|---------|
-| `NZILA_SAFE_CTX_PATH` | Path to JSON file on the **host** (mount into the container) | Enables context slider + `GET /api/v1/nzila/safe-ctx` |
-| `NZILA_GPU_STATS_URL` | Any value; empty string uses `http://127.0.0.1:8197` | Enables GPU meter + `GET /api/v1/nzila/gpu-stats` proxy |
+| `NZILA_SAFE_CTX_PATH` | Path to JSON on the host (mount read-only into the container) | Per-model overrides + fit hints; optional if you rely on live GPU estimates only |
+| `NZILA_GPU_STATS_URL` | Present in env (`=` alone → `http://127.0.0.1:8197`) | GPU meter, top bar, dynamic fit colouring |
+| `NZILA_BONSAI_ROUTER_URL` | Present in env (`=` alone → `http://127.0.0.1:8096`) | Live context reload for Bonsai models via router admin API |
 
-Unset variables = upstream behaviour (no routes, no UI).
+Unset **all three** → stock Open WebUI (no `/api/v1/nzila/*`, no Local GPU UI).
 
-### `safe-ctx.json` schema (canonical)
+Recommended host file: `~/.config/open-webui/safe-ctx.nzila.json` mounted at `/config/safe-ctx.nzila.json`.
+
+### `safe-ctx.json` (canonical entry)
 
 ```json
 {
-  "lfm-64k": {
-    "safe_max": 131072,
-    "tight_max": 196608,
-    "hard_max": 262144,
-    "fixed": false,
-    "fixed_ctx": null
+  "lfm-1.7b": {
+    "safe_max": 65536,
+    "tight_max": 98304,
+    "hard_max": 131072,
+    "bonsai": false
   },
-  "bonsai-ternary-2-27b": {
-    "safe_max": 8192,
-    "tight_max": 8192,
-    "hard_max": 8192,
-    "fixed": true,
-    "fixed_ctx": 8192
+  "bonsai-32k": {
+    "safe_max": 32768,
+    "tight_max": 32768,
+    "hard_max": 32768,
+    "bonsai": true
   }
 }
 ```
 
-**Accepted variants** (per model key): bare integer; `safe` / `max`; `tight` / `tight_max`; `hard` / `slider_max`; `fixed_context` (number) sets `fixed: true`. Optional wrapper `{"models": { ... }}`. See `GET /api/v1/nzila/safe-ctx/schema` when the feature is enabled.
+See also `docs/nzila-safe-ctx.example.json` and `docs/nzila-router-ctx-api.md`.
 
 ## Rebase or cherry-pick onto a new upstream tag
 
 ```bash
 git fetch origin --tags
-git checkout v0.13.3   # or your current custom base
-git pull
-
-# Option A: rebase the custom branch onto a newer tag
 git checkout nzila/custom-v0.13.3
-git rebase v0.14.0   # replace with the target tag
 
-# Option B: cherry-pick only the Nzila commits onto a fresh branch
+# Rebase onto newer tag
+git rebase v0.14.0
+
+# Or cherry-pick onto a fresh branch
 git checkout -b nzila/custom-v0.14.0 v0.14.0
 git cherry-pick <first-custom-commit>^..<last-custom-commit>
 ```
 
-Resolve conflicts preferring upstream in unrelated files; keep `nzila/*` and the small integration hunks.
-
-## Rebuild the image
+## Rebuild
 
 ```bash
 chmod +x scripts/nzila-build.sh
 ./scripts/nzila-build.sh
-# Produces open-webui:nzila-custom by default
 ```
 
-Override: `NZILA_IMAGE_NAME=my-registry/open-webui:custom ./scripts/nzila-build.sh`
-
-## Swap the running container (keep data volume)
-
-Assume existing container `open-webui`, host networking, data at `open-webui` volume or bind mount.
+## Swap container (keep data + secret key)
 
 ```bash
+# Preserve auth/session signing key from the running container
+docker cp open-webui:/app/backend/.webui_secret_key /tmp/.webui_secret_key
+
 docker stop open-webui
 docker rm open-webui
 
@@ -78,17 +73,22 @@ docker run -d --name open-webui \
   --network host \
   --restart unless-stopped \
   -v open-webui:/app/backend/data \
-  -v /path/on/host/safe-ctx.json:/config/safe-ctx.json:ro \
-  -e NZILA_SAFE_CTX_PATH=/config/safe-ctx.json \
+  -v /tmp/.webui_secret_key:/app/backend/.webui_secret_key:ro \
+  -v "$HOME/.config/open-webui/safe-ctx.nzila.json:/config/safe-ctx.nzila.json:ro" \
+  -e NZILA_SAFE_CTX_PATH=/config/safe-ctx.nzila.json \
   -e NZILA_GPU_STATS_URL= \
+  -e NZILA_BONSAI_ROUTER_URL= \
   open-webui:nzila-custom
 ```
 
-- Keep your existing `-v` / env vars (Ollama URLs, auth, etc.).
-- `NZILA_GPU_STATS_URL=` (empty) uses default `http://127.0.0.1:8197` (works with `--network host` on the laptop).
-- Remove the two `-e` / mount lines to return to stock behaviour while still running this image build.
+- Keep your existing Ollama URL, auth, and volume mounts.
+- `NZILA_GPU_STATS_URL=` and `NZILA_BONSAI_ROUTER_URL=` use defaults on host networking (`127.0.0.1:8197`, `127.0.0.1:8096`).
+- Remove the Nzila `-e` / mount lines to disable features without changing image.
 
 ```bash
-docker start open-webui   # after first create, or to restart
 docker logs -f open-webui
 ```
+
+## User settings
+
+**Settings → Local GPU** stores per-user preferences under `settings.nzila` (GPU bar, meter, slider, polling, default context per model, tok/s display). Requires `nzila_local_gpu` from the server config (any Nzila env var above).

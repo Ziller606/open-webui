@@ -110,12 +110,15 @@ def _normalize_entry(raw: Any) -> dict[str, Any] | None:
     if fixed and fixed_ctx is None:
         fixed_ctx = safe
 
+    bonsai = bool(raw.get('bonsai', raw.get('router', False)))
+
     return {
         'safe_max': safe,
         'tight_max': tight,
         'hard_max': hard,
         'fixed': fixed,
         'fixed_ctx': fixed_ctx if fixed else None,
+        'bonsai': bonsai,
     }
 
 

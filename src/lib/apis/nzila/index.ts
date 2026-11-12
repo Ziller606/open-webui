@@ -1,11 +1,8 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
+import type { FitLimits } from '$lib/utils/nzila/fit';
 
-export type NzilaSafeCtxEntry = {
-	safe_max: number;
-	tight_max: number;
-	hard_max: number;
-	fixed: boolean;
-	fixed_ctx: number | null;
+export type NzilaSafeCtxEntry = FitLimits & {
+	fixed_ctx?: number | null;
 };
 
 export type NzilaSafeCtxResponse = {
@@ -34,4 +31,31 @@ export const getNzilaGpuStats = async (token: string): Promise<Record<string, un
 	if (!res.ok) return null;
 	const data = await res.json();
 	return typeof data === 'object' && data !== null ? data : null;
+};
+
+export const getNzilaModelFit = async (token: string, modelId: string): Promise<FitLimits | null> => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/fit/${encodeURIComponent(modelId)}`, {
+		headers: {
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	});
+	if (res.status === 404) return null;
+	if (!res.ok) return null;
+	return res.json();
+};
+
+export const setNzilaBonsaiContext = async (token: string, modelId: string, ctx: number) => {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/nzila/ctx/${encodeURIComponent(modelId)}`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify({ ctx })
+	});
+	if (!res.ok) {
+		const text = await res.text();
+		throw new Error(text || 'Failed to set router context');
+	}
+	return res.json();
 };

@@ -48,6 +48,7 @@
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
 	import equal from 'fast-deep-equal';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
 
 	import Name from './Name.svelte';
 	import ProfileImage from './ProfileImage.svelte';
@@ -1102,6 +1103,15 @@
 										<ChevronRightIcon className="size-4" />
 									</button>
 								</div>
+							{/if}
+
+							{#if message.done && readNzilaSettings($settings).showToksPerSec && message.info?.eval_count && message.info?.eval_duration}
+								<span
+									class="self-center px-1 text-[0.6875rem] tabular-nums text-gray-400 dark:text-gray-500"
+									title="Tokens per second"
+								>
+									{(message.info.eval_count / (message.info.eval_duration / 1e9)).toFixed(1)} tok/s
+								</span>
 							{/if}
 
 							{#if message.done}

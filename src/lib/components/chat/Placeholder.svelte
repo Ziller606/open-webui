@@ -51,8 +51,9 @@
 	export let chatFiles: any[] = [];
 	export let params: Record<string, any> = {};
 	export let onParamChange: (key: string, value: unknown) => void = () => {};
-	export let numCtxValue: number | null = null;
-	export let onNumCtxChange: (value: number) => void = () => {};
+	export let modelContexts: Record<string, number> = {};
+	export let onContextRelease: (event: CustomEvent<{ modelId: string; ctx: number; bonsai: boolean }>) => void = () => {};
+	export let showContextSlider = false;
 	export let generating = false;
 
 	export let history;
@@ -262,12 +263,12 @@
 
 			<div class="text-base font-normal @md:max-w-3xl w-full py-3 {atSelectedModel ? 'mt-2' : ''}">
 				{#if !($selectedFolder && folderReadOnly)}
-					{#if $config?.features?.nzila_context_slider}
+					{#if showContextSlider}
 						<ContextLengthSlider
 							{selectedModels}
-							numCtx={numCtxValue}
+							{modelContexts}
 							disabled={generating}
-							on:change={(e) => onNumCtxChange(e.detail)}
+							on:release={onContextRelease}
 						/>
 					{/if}
 					<MessageInput

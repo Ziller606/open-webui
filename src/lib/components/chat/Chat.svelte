@@ -144,6 +144,8 @@
 	import WebSearchConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
 	import ContextLengthSlider from '$lib/components/nzila/ContextLengthSlider.svelte';
+	import GpuTopBar from '$lib/components/nzila/GpuTopBar.svelte';
+	import { readNzilaSettings } from '$lib/utils/nzila/defaults';
 	import FilesOverlay from './MessageInput/FilesOverlay.svelte';
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
@@ -5090,15 +5092,37 @@
 		});
 	};
 
-	const setNumCtx = async (value: number) => {
-		params = { ...params, num_ctx: value };
-		await saveParam('num_ctx', value);
-	};
+	$: nzilaPrefs = readNzilaSettings($settings);
 
-	$: numCtxValue =
-		params?.num_ctx !== null && params?.num_ctx !== undefined && params?.num_ctx !== ''
-			? Number(params.num_ctx)
-			: null;
+	$: nzilaModelContexts = (() => {
+		const fromParams = (params?.nzila_context ?? {}) as Record<string, number>;
+		const defaults = nzilaPrefs.defaultContextByModel ?? {};
+		const merged: Record<string, number> = { ...defaults, ...fromParams };
+		for (const modelId of selectedModels.filter(Boolean)) {
+			if (merged[modelId] === undefined) {
+				const n = params?.num_ctx;
+				merged[modelId] =
+					n !== null && n !== undefined && n !== '' ? Number(n) : 8192;
+			}
+		}
+		return merged;
+	})();
+
+	const onContextRelease = async (event: CustomEvent<{ modelId: string; ctx: number; bonsai: boolean }>) => {
+		const { modelId, ctx } = event.detail;
+		const nzila_context = { ...(params.nzila_context ?? {}), [modelId]: ctx };
+		params = {
+			...params,
+			nzila_context,
+			...(selectedModels[0] === modelId || selectedModels.length === 1 ? { num_ctx: ctx } : {})
+		};
+		if (nzilaPrefs.applyContextLive) {
+			await saveParam('nzila_context', nzila_context);
+			if (selectedModels[0] === modelId || selectedModels.length === 1) {
+				await saveParam('num_ctx', ctx);
+			}
+		}
+	};
 
 	const saveControls = async (models: string[] | null = null) => {
 		if (isShared) return;
@@ -5563,6 +5587,9 @@
 						/>
 					{/if}
 					<div id="chat-pane" class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
+						{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showGpuTopBar && $config?.features?.nzila_gpu_meter}
+							<GpuTopBar enabled />
+						{/if}
 						<div class="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
 							<div
@@ -5634,12 +5661,12 @@
 									id={embedded ? messageInputDropzoneId : undefined}
 									class=" pb-2 {dragged ? 'z-0' : 'z-10'}"
 								>
-									{#if $config?.features?.nzila_context_slider && !isShared}
+									{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider && !isShared}
 										<ContextLengthSlider
 											{selectedModels}
-											numCtx={numCtxValue}
+											modelContexts={nzilaModelContexts}
 											disabled={generating}
-											on:change={(e) => setNumCtx(e.detail)}
+											on:release={onContextRelease}
 										/>
 									{/if}
 									<MessageInput
@@ -5743,12 +5770,12 @@
 									</div>
 								{/if}
 								<div id={embedded ? messageInputDropzoneId : undefined} class="pb-2 z-10">
-									{#if $config?.features?.nzila_context_slider && !isShared}
+									{#if $config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider && !isShared}
 										<ContextLengthSlider
 											{selectedModels}
-											numCtx={numCtxValue}
+											modelContexts={nzilaModelContexts}
 											disabled={generating}
-											on:change={(e) => setNumCtx(e.detail)}
+											on:release={onContextRelease}
 										/>
 									{/if}
 									<MessageInput
@@ -5833,8 +5860,9 @@
 									bind:chatFiles
 									bind:params
 									onParamChange={saveParam}
-									{numCtxValue}
-									onNumCtxChange={setNumCtx}
+									modelContexts={nzilaModelContexts}
+									onContextRelease={onContextRelease}
+									showContextSlider={$config?.features?.nzila_local_gpu && nzilaPrefs.showContextSlider}
 									{generating}
 									bind:messageInput
 									bind:files

@@ -61,6 +61,7 @@
 	import AdminImages from '$lib/components/admin/Settings/Images.svelte';
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
 	import AdminDatabase from '$lib/components/admin/Settings/Database.svelte';
+	import LocalGpu from './Settings/LocalGpu.svelte';
 
 	const i18n: Writable<any> = getContext('i18n');
 
@@ -151,6 +152,7 @@
 		tools: $i18n.t('Services'),
 		personalization: $i18n.t('Preferences'),
 		audio: $i18n.t('Preferences'),
+		local_gpu: $i18n.t('Preferences'),
 		data_controls: $i18n.t('Data'),
 		usage: $i18n.t('Data'),
 		archived_chats: $i18n.t('Data'),
@@ -236,6 +238,12 @@
 			titleKey: 'settings.personal.audio.title',
 			title: $i18n.t('settings.personal.audio.title'),
 			searchPrefixes: ['settings.personal.audio.']
+		},
+		{
+			id: 'local_gpu',
+			title: 'Local GPU',
+			titleKey: 'settings.personal.localGpu.title',
+			searchPrefixes: ['settings.personal.localGpu.']
 		},
 		{
 			id: 'data_controls',
@@ -419,6 +427,10 @@
 
 			if (tab.id === 'usage') {
 				return $visibleControls['settings.usage'];
+			}
+
+			if (tab.id === 'local_gpu') {
+				return !!$config?.features?.nzila_local_gpu;
 			}
 
 			if (tab.id === 'personalization') {
@@ -731,6 +743,19 @@
 								<SoundHigh className="size-3.5" strokeWidth="2" />
 								<span>{$i18n.t('settings.personal.audio.title')}</span>
 							</button>
+						{:else if tabId === 'local_gpu'}
+							<button
+								role="tab"
+								aria-controls="tab-local-gpu"
+								aria-selected={selectedTab === 'local_gpu'}
+								class={tabButtonClass(selectedTab === 'local_gpu')}
+								on:click={() => {
+									selectTab('local_gpu');
+								}}
+							>
+								<AdjustmentsHorizontal className="size-3.5" strokeWidth="2" />
+								<span>Local GPU</span>
+							</button>
 						{:else if tabId === 'data_controls'}
 							<button
 								role="tab"
@@ -897,6 +922,8 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
+			{:else if selectedTab === 'local_gpu'}
+				<LocalGpu {saveSettings} />
 			{:else if selectedTab === 'data_controls'}
 				<DataControls {saveSettings} />
 			{:else if selectedTab === 'usage'}
